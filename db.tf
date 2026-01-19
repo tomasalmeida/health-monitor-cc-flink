@@ -51,7 +51,7 @@ resource "aws_db_instance" "postgres_db" {
   engine             = "postgres"
   engine_version     = "16.8"
   instance_class     = "db.t3.medium"
-  identifier         = "${var.use_prefix}health-${random_id.env_display_id.hex}"
+  identifier         = "${var.use_prefix}-health-${random_id.env_display_id.hex}"
   db_name = "patientdb"
   username           = var.db_username
   password           = var.db_password
@@ -64,7 +64,7 @@ resource "aws_db_instance" "postgres_db" {
 
 
 resource "aws_db_parameter_group" "pg_parameter_group" {
-  name   = "${var.use_prefix}rds-pg-debezium-${random_id.env_display_id.hex}"
+  name   = "${var.use_prefix}-rds-pg-debezium-${random_id.env_display_id.hex}"
   family = "postgres16"
 
   parameter {
