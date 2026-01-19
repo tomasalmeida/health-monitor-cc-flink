@@ -12,6 +12,8 @@ cat > "$PWD/terraform.tfvars" <<EOF
 confluent_cloud_api_key    = "<Your Confluent Cloud API Key>"
 confluent_cloud_api_secret = "<Your Confluent Cloud API Secret>"
 use_prefix                 = "<your-prefix>"
+email                      = "<your-email>"
+db_password                = "YourPassword123!"
 EOF
 ```
 
