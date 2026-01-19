@@ -90,7 +90,7 @@ resource "null_resource" "create_tables" {
         -U ${aws_db_instance.postgres_db.username} \
         -d ${aws_db_instance.postgres_db.db_name} \
         -c "
-      CREATE TABLE IF NOT EXISTS patient (
+      CREATE TABLE IF NOT EXISTS patients (
           patient_id INT PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           age INT NOT NULL
@@ -101,7 +101,7 @@ resource "null_resource" "create_tables" {
         -U ${aws_db_instance.postgres_db.username} \
         -d ${aws_db_instance.postgres_db.db_name} \
         -c "
-        INSERT INTO patient (patient_id, name, age) VALUES
+        INSERT INTO patients (patient_id, name, age) VALUES
         (1, 'John Doe',      45),
         (2, 'Jane Smith',    32),
         (3, 'Michael Brown', 50),
