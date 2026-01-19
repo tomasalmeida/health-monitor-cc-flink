@@ -113,6 +113,7 @@ resource "confluent_flink_statement" "enriched_events_feed" {
 
   CREATE TABLE enriched_events AS
   SELECT
+    $rowtime as event_time,
     v.*,
     r.name,
     r.age
