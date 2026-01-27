@@ -46,11 +46,15 @@ data "confluent_schema_registry_cluster" "sr_cluster" {
   environment {
     id = confluent_environment.env_demo.id
   }
+
+  depends_on = [
+    confluent_kafka_cluster.cluster_kafka_demo
+  ]
 }
 
 resource "confluent_service_account" "sa_demo" {
   display_name = "${var.use_prefix}-demo-sa"
-  description  = "Service account for Kafka Connect Datagen device heartbeat connector"
+  description  = "Service account for device event generator"
 }
 
 resource "confluent_role_binding" "rbac_sa_demo" {
@@ -77,6 +81,18 @@ resource "confluent_role_binding" "rbac_sa_demo_env" {
   crn_pattern = confluent_environment.env_demo.resource_name
 }
 
+resource "confluent_role_binding" "rbac_cloud_user_sr" {
+  principal   = "User:${var.confluent_cloud_account}"
+  role_name  = "ResourceOwner"
+  crn_pattern = "${data.confluent_schema_registry_cluster.sr_cluster.resource_name}/subject=*"
+}
+
+resource "confluent_role_binding" "rbac_sa_demo_sr" {
+  principal   = "User:${confluent_service_account.sa_demo.id}"
+  role_name  = "ResourceOwner"
+  crn_pattern = "${data.confluent_schema_registry_cluster.sr_cluster.resource_name}/subject=*"
+}
+
 resource "confluent_api_key" "api_key_sa_demo" {
   display_name = "${var.use_prefix}-datagen-source-api-key"
   description  = "Kafka API Key that is owned by '${confluent_service_account.sa_demo.display_name}' service account"
@@ -95,6 +111,7 @@ resource "confluent_api_key" "api_key_sa_demo" {
       id = confluent_environment.env_demo.id
     }
   }
+
 }
 
 resource "confluent_api_key" "api_key_sa_demo_flink" {
@@ -114,6 +131,7 @@ resource "confluent_api_key" "api_key_sa_demo_flink" {
       id = confluent_environment.env_demo.id
     }
   }
+
 }
 
 resource "confluent_api_key" "api_key_sa_sr_demo" {
@@ -133,6 +151,7 @@ resource "confluent_api_key" "api_key_sa_sr_demo" {
       id = confluent_environment.env_demo.id
     }
   }
+
 }
 
 resource "confluent_kafka_topic" "topic_events" {

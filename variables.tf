@@ -10,6 +10,11 @@ variable "confluent_cloud_api_secret" {
   sensitive   = true
 }
 
+variable "confluent_cloud_account" {
+  description = "Confluent Cloud account ID to create resources under"
+  type        = string
+}
+
 variable "use_prefix" {
   description = "choose a prefix to all your resources"
   type        = string

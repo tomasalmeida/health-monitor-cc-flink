@@ -97,6 +97,16 @@ def circadian_sine(now_s: float, period_s: float, amplitude: float) -> float:
     return amplitude * math.sin(phase)
 
 
+def circadian_sine_per_patient(state: Dict[str, float], now_s: float, period_s: float, amplitude: float) -> float:
+    last_time = state.get("last_time", now_s)
+    phase = state.get("phase", random.uniform(0.0, 2 * math.pi))
+    delta_s = max(0.0, now_s - last_time)
+    phase = (phase + (2 * math.pi * delta_s / period_s)) % (2 * math.pi)
+    state["phase"] = phase
+    state["last_time"] = now_s
+    return amplitude * math.sin(phase)
+
+
 def choose_nearest(target: float, options) -> float:
     """Pick the closest allowed discrete value from the Datagen options."""
     return min(options, key=lambda x: abs(x - target))
@@ -187,7 +197,12 @@ def build_avro_producer(kafka_cfg: Dict):
     return topic, producer
 
 
-def make_event(t0: float, patient_id: int, brownian: Dict[str, BrownianDrift]) -> Dict:
+def make_event(
+    t0: float,
+    patient_id: int,
+    brownian: Dict[str, BrownianDrift],
+    circadian_state: Dict[str, float],
+) -> Dict:
     now = time.time()
     elapsed = now - t0
 
@@ -197,17 +212,17 @@ def make_event(t0: float, patient_id: int, brownian: Dict[str, BrownianDrift]) -
     temp_base = 36.7
     temp_amp = 0.5
 
-    hr_val = hr_base + circadian_sine(now, 86400, hr_amp) + brownian["hr"].step()
-    temp_val = temp_base + circadian_sine(now, 86400, temp_amp) + brownian["temp"].step()
+    hr_val = hr_base + circadian_sine_per_patient(circadian_state, now, 86400, hr_amp) + brownian["hr"].step()
+    temp_val = temp_base + circadian_sine_per_patient(circadian_state, now, 86400, temp_amp) + brownian["temp"].step()
 
     systolic_base = 120
     diastolic_base = 78
     bp_amp = 8
-    systolic_val = systolic_base + circadian_sine(now, 86400, bp_amp) + brownian["sys"].step()
-    diastolic_val = diastolic_base + circadian_sine(now, 86400, bp_amp * 0.6) + brownian["dia"].step()
+    systolic_val = systolic_base + circadian_sine_per_patient(circadian_state, now, 86400, bp_amp) + brownian["sys"].step()
+    diastolic_val = diastolic_base + circadian_sine_per_patient(circadian_state, now, 86400, bp_amp * 0.6) + brownian["dia"].step()
 
     spo2_base = 96
-    spo2_val = spo2_base + circadian_sine(now, 86400, 1.0) + brownian["spo2"].step()
+    spo2_val = spo2_base + circadian_sine_per_patient(circadian_state, now, 86400, 1.0) + brownian["spo2"].step()
 
     battery = max(5, min(100, 100 - int(elapsed / 300) - random.randint(0, 2)))
 
@@ -246,18 +261,16 @@ def main() -> None:
 
     kafka_cfg = cfg.get("kafka") or {}
     kafka_topic = kafka_cfg.get("topic") or cfg.get("topic")
-    producer = None
-    is_avro = False
-    if kafka_cfg and not args.stdout:
-        if "schema.registry.url" in kafka_cfg:
-            kafka_topic, producer = build_avro_producer(kafka_cfg)
-            is_avro = True
-        else:
-            kafka_topic, producer = build_producer(kafka_cfg)
+    if args.stdout:
+        raise SystemExit("stdout mode is disabled. Avro/Kafka output is required.")
+    if not kafka_cfg:
+        raise SystemExit("Kafka config is required. Provide Kafka settings in config.json.")
+    kafka_topic, producer = build_avro_producer(kafka_cfg)
 
     t0 = time.time()
-    # Create separate Brownian drift state for each patient
+    # Create separate drift/circadian state for each patient
     brownian_per_patient = {}
+    circadian_state_per_patient = {}
     for patient_id in PATIENT_IDS:
         brownian_per_patient[patient_id] = {
             "hr": BrownianDrift(volatility=1.5, clamp=(-6, 6)),
@@ -266,6 +279,7 @@ def main() -> None:
             "dia": BrownianDrift(volatility=1.5, clamp=(-8, 8)),
             "spo2": BrownianDrift(volatility=0.6, clamp=(-3, 3)),
         }
+        circadian_state_per_patient[patient_id] = {"phase": random.uniform(0.0, 2 * math.pi), "last_time": t0}
 
     end_time = t0 + duration if duration > 0 else None
     try:
@@ -274,18 +288,16 @@ def main() -> None:
                 break
             # Generate one event per patient
             for patient_id in PATIENT_IDS:
-                event = make_event(t0, patient_id, brownian_per_patient[patient_id])
+                event = make_event(
+                    t0,
+                    patient_id,
+                    brownian_per_patient[patient_id],
+                    circadian_state_per_patient[patient_id],
+                )
                 payload = json.dumps(event)
-                if producer:
-                    if is_avro:
-                        # SerializingProducer expects dict; Avro serializer handles encoding
-                        producer.produce(kafka_topic, value=event)
-                    else:
-                        producer.produce(kafka_topic, value=payload.encode("utf-8"))
-                    producer.poll(0)
-                else:
-                    sys.stdout.write(payload + "\n")
-                    sys.stdout.flush()
+                # SerializingProducer expects dict; Avro serializer handles encoding
+                producer.produce(kafka_topic, value=event)
+                producer.poll(0)
             time.sleep(interval)
     except KeyboardInterrupt:
         pass

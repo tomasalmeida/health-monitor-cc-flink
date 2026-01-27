@@ -44,7 +44,7 @@ resource "docker_image" "health_simulator" {
   name = "health-simulator:latest"
   keep_locally = true
   build {
-    context    = "${path.module}/health-simulator"
+    context    = "${path.module}"
     dockerfile = "${path.module}/health-simulator/Dockerfile"
   }
   triggers = {
@@ -54,22 +54,6 @@ resource "docker_image" "health_simulator" {
   depends_on = [local_file.health_simulator_config]
 }
 
-resource "docker_container" "health_simulator" {
-  name    = "health-simulator"
-  image   = docker_image.health_simulator.image_id
-  restart = "unless-stopped"
-
-  mounts {
-    target    = "/app/config.json"
-    source    = abspath("${path.module}/config.json")
-    type      = "bind"
-    read_only = true
-  }
-
-  depends_on = [docker_image.health_simulator]
-}
-
-
 output "how-to-run" {
 
   value = <<-EOT
@@ -77,8 +61,7 @@ output "how-to-run" {
 ----------------------------
    Health generator how to run
 ------------------------------
-  $ docker run health-simulator
-
+  $ docker run health-simulator:latest
   EOT
 
   sensitive = false

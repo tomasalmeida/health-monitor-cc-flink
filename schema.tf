@@ -140,7 +140,12 @@ EOF
     secret = confluent_api_key.api_key_sa_sr_demo.secret
   }
 
+  lifecycle {
+    prevent_destroy = false
+  }
+
   depends_on = [
-    confluent_kafka_topic.topic_events
+    confluent_kafka_topic.topic_events,
+    confluent_api_key.api_key_sa_sr_demo
   ]
 }

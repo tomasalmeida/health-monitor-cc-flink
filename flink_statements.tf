@@ -95,7 +95,8 @@ resource "confluent_flink_statement" "patient_table" {
 
 resource "confluent_flink_statement" "enriched_events_feed" {
   depends_on = [
-    confluent_flink_statement.patient_table
+    confluent_flink_statement.patient_table,
+    confluent_schema.events_value
   ]   
   organization {
     id = data.confluent_organization.main.id
@@ -224,14 +225,15 @@ anomaly_detection AS (
 }
 
 # --------------------------------------------------------
-# Step 3: identifying exercise vs heart attack (ML_DETECT_ANOMALIES)
+# Step 3: filter out anomalies
 # --------------------------------------------------------
 
 # --------------------------------------------------------
-# Step 4: push alerts to tableflow
+# Step 4: detect health alerts based on ML_FORECAST
 # --------------------------------------------------------
 
+
 # --------------------------------------------------------
-# Step 5: Improve the data random generator to be more predictable
+# Step N: push alerts to tableflow
 # --------------------------------------------------------
 
