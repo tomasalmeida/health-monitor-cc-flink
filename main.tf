@@ -66,9 +66,18 @@ resource "confluent_role_binding" "rbac_sa_demo" {
 }
 
 resource "confluent_role_binding" "rbac_sa_demo_flink" {
-  depends_on = [ confluent_kafka_cluster.cluster_kafka_demo, confluent_service_account.sa_demo ]
+  depends_on = [ confluent_kafka_cluster.cluster_kafka_demo, confluent_service_account.sa_demo, confluent_flink_compute_pool.flink_compute_pool ]
 
   principal   = "User:${confluent_service_account.sa_demo.id}"
+  role_name   = "FlinkAdmin"
+  crn_pattern = confluent_environment.env_demo.resource_name
+}
+
+resource "confluent_role_binding" "rbac_account_flink" {
+
+  depends_on = [ confluent_flink_compute_pool.flink_compute_pool ] 
+  
+  principal   = "User:${var.confluent_cloud_account}"
   role_name   = "FlinkAdmin"
   crn_pattern = confluent_environment.env_demo.resource_name
 }
