@@ -1,5 +1,5 @@
 # --------------------------------------------------------
-# Step 1: Create a connection to read patient data from the source databased
+# Step 1: Create a connection to read patient data from the source database
 # --------------------------------------------------------
 
 resource "confluent_flink_statement" "patientdb_connection" {
@@ -20,7 +20,7 @@ resource "confluent_flink_statement" "patientdb_connection" {
     id = confluent_service_account.sa_demo.id
   }
   statement  = <<EOF
-  CREATE CONNECTION `patientdb-pg-connection`
+  CREATE CONNECTION IF NOT EXISTS `patientdb-pg-connection`
   WITH (
     'type' = 'confluent_jdbc',
     'endpoint' = 'jdbc:postgresql://${aws_db_instance.postgres_db.address}:${aws_db_instance.postgres_db.port}/${aws_db_instance.postgres_db.db_name}',

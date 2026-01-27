@@ -1,0 +1,17 @@
+{
+  "interval": 0.5,
+  "duration": 0,
+  "kafka": {
+    "bootstrap.servers": "pkc-xxxxx.us-east-1.aws.confluent.cloud:9092",
+    "security.protocol": "SASL_SSL",
+    "sasl.mechanisms": "PLAIN",
+    "sasl.username": "<api-key>",
+    "sasl.password": "<api-secret>",
+    "acks": "1",
+    "linger.ms": 5,
+    "topic": "events",
+    "schema.registry.url": "https://<sr-endpoint>",
+    "basic.auth.credentials.source": "USER_INFO",
+    "basic.auth.user.info": "<sr-key>:<sr-secret>"
+  }
+}
