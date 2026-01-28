@@ -48,7 +48,8 @@ data "confluent_schema_registry_cluster" "sr_cluster" {
   }
 
   depends_on = [
-    confluent_kafka_cluster.cluster_kafka_demo
+    confluent_kafka_cluster.cluster_kafka_demo, 
+    confluent_role_binding.rbac_sa_demo_env
   ]
 }
 
@@ -82,7 +83,7 @@ resource "confluent_role_binding" "rbac_account_flink" {
 }
 
 resource "confluent_role_binding" "rbac_sa_demo_env" {
-  depends_on = [ confluent_kafka_cluster.cluster_kafka_demo, confluent_service_account.sa_demo ]
+  depends_on = [ confluent_environment.env_demo, confluent_service_account.sa_demo ]
 
   principal   = "User:${confluent_service_account.sa_demo.id}"
   role_name   = "EnvironmentAdmin"

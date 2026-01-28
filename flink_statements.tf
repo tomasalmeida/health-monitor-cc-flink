@@ -254,7 +254,7 @@ resource "confluent_flink_statement" "filtered_enriched_events" {
   SELECT
     *
   FROM enriched_events_flagged
-  WHERE COALESCE(JSON_VALUE(report, '$.isAnomaly'), 'false') = 'false';
+  WHERE report.is_anomaly = FALSE;
 
   EOF
   properties = {

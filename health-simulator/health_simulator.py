@@ -90,12 +90,7 @@ class BrownianDrift:
         self.state += random.gauss(0.0, self.volatility)
         self.state = max(self.clamp_min, min(self.state, self.clamp_max))
         return self.state
-
-
-def circadian_sine(now_s: float, period_s: float, amplitude: float) -> float:
-    phase = 2 * math.pi * (now_s % period_s) / period_s
-    return amplitude * math.sin(phase)
-
+    
 
 def circadian_sine_per_patient(state: Dict[str, float], now_s: float, period_s: float, amplitude: float) -> float:
     last_time = state.get("last_time", now_s)
