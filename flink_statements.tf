@@ -47,6 +47,7 @@ resource "confluent_flink_statement" "patientdb_connection" {
 
 resource "confluent_flink_statement" "patient_table" {
   depends_on = [
+     confluent_flink_compute_pool.flink_compute_pool,
     confluent_flink_statement.patientdb_connection
   ]   
   organization {
@@ -96,6 +97,7 @@ resource "confluent_flink_statement" "patient_table" {
 resource "confluent_flink_statement" "enriched_events_feed" {
   depends_on = [
     confluent_flink_statement.patient_table,
+    confluent_flink_compute_pool.flink_compute_pool,
     confluent_schema.events_value
   ]   
   organization {
@@ -147,10 +149,11 @@ resource "confluent_flink_statement" "enriched_events_feed" {
 
 
 # --------------------------------------------------------
-# Step 2: remove anomalies from health events (ML_DETECT_ANOMALIES)
+# Step 3: remove anomalies from health events (ML_DETECT_ANOMALIES)
 # --------------------------------------------------------
 resource "confluent_flink_statement" "anomalies_detected" {
   depends_on = [
+     confluent_flink_compute_pool.flink_compute_pool,
     confluent_flink_statement.enriched_events_feed
   ]   
   organization {
@@ -228,9 +231,123 @@ anomaly_detection AS (
 # Step 3: filter out anomalies
 # --------------------------------------------------------
 
+resource "confluent_flink_statement" "filtered_enriched_events" {
+  depends_on = [
+    confluent_flink_statement.anomalies_detected,
+    confluent_flink_compute_pool.flink_compute_pool
+  ]
+  organization {
+    id = data.confluent_organization.main.id
+  }
+  environment {
+    id = confluent_environment.env_demo.id
+  }
+  compute_pool {
+    id = confluent_flink_compute_pool.flink_compute_pool.id
+  }
+  principal {
+    id = confluent_service_account.sa_demo.id
+  }
+  statement = <<EOF
+
+  CREATE TABLE filtered_enriched_events AS
+  SELECT
+    *
+  FROM enriched_events_flagged
+  WHERE COALESCE(JSON_VALUE(report, '$.isAnomaly'), 'false') = 'false';
+
+  EOF
+  properties = {
+    "sql.current-catalog"  = confluent_environment.env_demo.display_name
+    "sql.current-database" = confluent_kafka_cluster.cluster_kafka_demo.display_name
+  }
+
+  rest_endpoint = data.confluent_flink_region.main.rest_endpoint
+  credentials {
+    key    = confluent_api_key.api_key_sa_demo_flink.id
+    secret = confluent_api_key.api_key_sa_demo_flink.secret
+  }
+
+  lifecycle {
+    prevent_destroy = false
+  }
+}
+
 # --------------------------------------------------------
 # Step 4: detect health alerts based on ML_FORECAST
 # --------------------------------------------------------
+
+resource "confluent_flink_statement" "heartbeat_alerts" {
+  depends_on = [
+    confluent_flink_statement.filtered_enriched_events,
+    confluent_flink_compute_pool.flink_compute_pool 
+  ]
+  organization {
+    id = data.confluent_organization.main.id
+  }
+  environment {
+    id = confluent_environment.env_demo.id
+  }
+  compute_pool {
+    id = confluent_flink_compute_pool.flink_compute_pool.id
+  }
+  principal {
+    id = confluent_service_account.sa_demo.id
+  }
+  statement = <<EOF
+
+  CREATE TABLE heartbeat_alerts AS
+  WITH forecasted AS (
+    SELECT
+      patient_id,
+      event_timestamp,
+      observed_value,
+      ML_FORECAST(
+        observed_value,
+        event_timestamp,
+        JSON_OBJECT(
+          'horizon' VALUE 1,
+          'confidencePercentage' VALUE 95.0
+        )
+      ) OVER (
+        PARTITION BY patient_id
+        ORDER BY event_timestamp
+        RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+      ) AS forecast_values
+    FROM filtered_enriched_events
+  )
+  SELECT
+    f.patient_id,
+    f.event_timestamp,
+    f.observed_value AS current_value,
+    fc.forecast_value
+  FROM forecasted AS f
+  CROSS JOIN UNNEST(f.forecast_values) AS fc(
+    forecast_timestamp,
+    forecast_value,
+    lower_bound,
+    upper_bound,
+    rmse,
+    aic
+  )
+  WHERE fc.forecast_value < 40;
+
+  EOF
+  properties = {
+    "sql.current-catalog"  = confluent_environment.env_demo.display_name
+    "sql.current-database" = confluent_kafka_cluster.cluster_kafka_demo.display_name
+  }
+
+  rest_endpoint = data.confluent_flink_region.main.rest_endpoint
+  credentials {
+    key    = confluent_api_key.api_key_sa_demo_flink.id
+    secret = confluent_api_key.api_key_sa_demo_flink.secret
+  }
+
+  lifecycle {
+    prevent_destroy = false
+  }
+}
 
 
 # --------------------------------------------------------
